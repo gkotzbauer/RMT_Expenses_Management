@@ -87,7 +87,6 @@ def analyze_file(contents):
 
     df = pd.DataFrame(results)
 
-    # Exclude non-data headers
     headers_to_remove = [
         "600100 Payroll expenses", "610000 Supplies", "613000 Insurance",
         "616000 Employee Benefits", "612000 Professional Fees",
@@ -170,11 +169,12 @@ def update_output(contents, filename):
 
     actions = ["Low margin leverage", "No issues", "Ratio increased",
                "April outlier", "Statistically significant change", "High slope (scales with income)"]
-    action_counts = df[actions].sum().reset_index()
-    action_counts.columns = ["Action", "Count"]
+    action_counts = pd.DataFrame({
+        "Action": actions,
+        "Count": [df[action].sum() for action in actions]
+    })
     action_fig = px.bar(action_counts, x="Action", y="Count", title="Action Item Frequency")
 
-    # Priority score summary table
     top_scores = df[df["Priority Score"] > 0]
     top_grouped = top_scores.groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
     top_table = dash_table.DataTable(
@@ -208,7 +208,20 @@ def update_output(contents, filename):
         ], style={"marginTop": "10px", "border": "1px solid #ccc", "borderCollapse": "collapse", "width": "80%"})
     ])
 
-    return table, score_fig, action_fig, html.Div([top_table, top_score_explanation]), action_definitions_table
+    # New summary table under the definitions
+    action_summary = []
+    for flag in actions:
+        matched = df[df[flag] == 1]["Category"].tolist()
+        action_summary.append({"Action Item": flag, "Categories": "; ".join(matched)})
+
+    action_item_category_table = dash_table.DataTable(
+        data=action_summary,
+        columns=[{"name": "Action Item", "id": "Action Item"}, {"name": "Categories", "id": "Categories"}],
+        style_cell_conditional=[{"if": {"column_id": "Categories"}, "whiteSpace": "normal", "height": "auto"}],
+        style_table={"marginTop": "20px", "width": "100%"}
+    )
+
+    return table, score_fig, action_fig, html.Div([top_table, top_score_explanation]), html.Div([action_definitions_table, action_item_category_table])
 
 @app.callback(
     Output("download-dataframe-xlsx", "data"),
