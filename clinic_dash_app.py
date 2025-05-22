@@ -1,3 +1,4 @@
+
 import pandas as pd
 import numpy as np
 import base64
@@ -86,6 +87,7 @@ def analyze_file(contents):
         })
 
     df = pd.DataFrame(results)
+    df["Category"] = df["Category"].astype(str).str.strip()
 
     headers_to_remove = [
         "600100 Payroll expenses", "610000 Supplies", "613000 Insurance",
@@ -115,6 +117,8 @@ def analyze_file(contents):
         score, flag = score_row(row)
         df.at[idx, "Priority Score"] = score
         df.at[idx, "Action Needed"] = flag
+
+    df["Action Needed"] = df["Action Needed"].astype(str).str.strip()
 
     actions = [
         "Low margin leverage", "No issues", "Ratio increased",
