@@ -87,6 +87,18 @@ def analyze_file(contents):
 
     df = pd.DataFrame(results)
 
+    # Remove header rows (not real categories)
+    headers_to_remove = [
+        "600100 Payroll expenses",
+        "610000 Supplies",
+        "613000 Insurance",
+        "616000 Employee Benefits",
+        "612000 Professional Fees",
+        "620000 Taxes",
+        "650000 Depreciation Expense"
+    ]
+    df = df[~df['Category'].isin(headers_to_remove)]
+
     def score_row(row):
         score = 0
         reasons = []
@@ -155,12 +167,6 @@ def update_output(contents, filename):
 
     filtered_df = df[df["Priority Score"] > 0]
     score_fig = px.histogram(filtered_df, x="Priority Score", title="Categories by Priority Score")
-    score_fig.update_layout(
-        annotations=[dict(
-            text="This chart shows how many categories are assigned to each priority level.",
-            xref="paper", yref="paper", showarrow=False, x=0, y=1.08, font=dict(size=12)
-        )]
-    )
 
     actions = ["Low margin leverage", "No issues", "Ratio increased",
                "April outlier", "Statistically significant change", "High slope (scales with income)"]
@@ -175,7 +181,7 @@ def update_output(contents, filename):
         style_table={"marginTop": "20px"}
     )
 
-    top_scores = df[df["Priority Score"] >= df["Priority Score"].max() - 2]
+    top_scores = df[df["Priority Score"] > 0]
     top_grouped = top_scores.groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
     categories_by_priority = dash_table.DataTable(
         data=top_grouped.to_dict("records"),
@@ -184,25 +190,28 @@ def update_output(contents, filename):
         style_table={"marginTop": "20px"}
     )
 
-    action_definitions_table = html.Table([
-        html.Thead(html.Tr([html.Th("Action Item"), html.Th("Definition")])),
-        html.Tbody([
-            html.Tr([html.Td("Low margin leverage"), html.Td("Cost doesn't scale well with income")]),
-            html.Tr([html.Td("Ratio increased"), html.Td("Expense ratio increased from Jan to Apr")]),
-            html.Tr([html.Td("April outlier"), html.Td("April's cost was far outside the norm")]),
-            html.Tr([html.Td("Statistically significant change"), html.Td("Pattern shift is statistically validated")]),
-            html.Tr([html.Td("High slope (scales with income)"), html.Td("Cost increases rapidly with revenue")]),
-            html.Tr([html.Td("No issues"), html.Td("No risk indicators triggered")]),
-        ])
-    ], style={"marginTop": "30px", "border": "1px solid #ccc", "borderCollapse": "collapse", "width": "80%"})
+    action_definitions_table = html.Details([
+        html.Summary("📘 Action Item Definitions (click to expand)"),
+        html.Table([
+            html.Thead(html.Tr([html.Th("Action Item"), html.Th("Definition")])),
+            html.Tbody([
+                html.Tr([html.Td("Low margin leverage"), html.Td("Cost doesn't scale well with income")]),
+                html.Tr([html.Td("Ratio increased"), html.Td("Expense ratio increased from Jan to Apr")]),
+                html.Tr([html.Td("April outlier"), html.Td("April's cost was far outside the norm")]),
+                html.Tr([html.Td("Statistically significant change"), html.Td("Pattern shift is statistically validated")]),
+                html.Tr([html.Td("High slope (scales with income)"), html.Td("Cost increases rapidly with revenue")]),
+                html.Tr([html.Td("No issues"), html.Td("No risk indicators triggered")]),
+            ])
+        ], style={"marginTop": "10px", "border": "1px solid #ccc", "borderCollapse": "collapse", "width": "80%"})
+    ])
 
     return html.Div([
         table,
-        html.H4("📋 Categories by Action Needed"),
-        categories_by_action,
         html.H4("🏆 Categories in Top 3 Priority Scores"),
         categories_by_priority,
-        html.H4("📘 Action Item Definitions"),
+        html.H4("📋 Categories by Action Needed"),
+        categories_by_action,
+        html.H4("📘 Action Item Frequency"),
         action_definitions_table
     ]), score_fig, action_fig
 
