@@ -116,13 +116,13 @@ def analyze_file(contents):
         df.at[idx, "Priority Score"] = score
         df.at[idx, "Action Needed"] = flag
 
-    action_flags = [
+    actions = [
         "Low margin leverage", "No issues", "Ratio increased",
         "April outlier", "Statistically significant change",
         "High slope (scales with income)"
     ]
-    for flag in action_flags:
-        df[flag] = df["Action Needed"].apply(lambda x: 1 if flag in str(x) else 0)
+    for action in actions:
+        df[action] = df["Action Needed"].str.contains(action, case=False).astype(int)
 
     return df
 
@@ -164,8 +164,7 @@ def update_output(contents, filename):
         style_table={'overflowX': 'auto'}
     )
 
-    filtered_df = df[df["Priority Score"] > 0]
-    score_fig = px.histogram(filtered_df, x="Priority Score", title="Categories by Priority Score")
+    score_fig = px.histogram(df[df["Priority Score"] > 0], x="Priority Score", title="Categories by Priority Score")
 
     actions = ["Low margin leverage", "No issues", "Ratio increased",
                "April outlier", "Statistically significant change", "High slope (scales with income)"]
@@ -208,7 +207,6 @@ def update_output(contents, filename):
         ], style={"marginTop": "10px", "border": "1px solid #ccc", "borderCollapse": "collapse", "width": "80%"})
     ])
 
-    # New summary table under the definitions
     action_summary = []
     for flag in actions:
         matched = df[df[flag] == 1]["Category"].tolist()
