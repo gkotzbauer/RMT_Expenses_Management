@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
@@ -53,8 +52,14 @@ def analyze_file(contents):
         z_apr = (apr - mean_jfm) / std_jfm if std_jfm != 0 else np.nan
 
         pre, post = [jan, feb], [mar, apr]
-        t_stat, p_val = ttest_ind(pre, post, equal_var=False)
-        sig = "Yes" if p_val < 0.05 else "No"
+        try:
+            if len(set(pre)) > 1 or len(set(post)) > 1:
+                t_stat, p_val = ttest_ind(pre, post, equal_var=False)
+            else:
+                t_stat, p_val = np.nan, np.nan
+        except:
+            t_stat, p_val = np.nan, np.nan
+        sig = "Yes" if p_val is not np.nan and p_val < 0.05 else "No"
 
         may_reg = LinearRegression().fit(np.array([[1], [2], [3], [4]]), np.array([jan, feb, mar, apr]))
         may_forecast = may_reg.predict(np.array([[5]]))[0]
@@ -154,7 +159,7 @@ def update_output(contents, filename):
     score_fig.update_layout(
         annotations=[dict(
             text="This chart shows how many expense categories fall into each priority level (excluding 0). "
-                 "Higher scores indicate stronger margin optimization opportunities.",
+                 "Higher scores indicate greater margin risk or inefficiency.",
             xref="paper", yref="paper", showarrow=False, x=0, y=1.08, font=dict(size=12)
         )]
     )
@@ -166,17 +171,40 @@ def update_output(contents, filename):
     action_fig = px.bar(action_counts, x="Action", y="Count", title="Action Item Frequency")
     action_fig.update_layout(
         annotations=[dict(
-            text="This chart counts how often each action flag is assigned.\n"
-                 "Low margin leverage: Low efficiency at higher income.\n"
-                 "Ratio increased: April cost rose relative to income.\n"
-                 "April outlier: Cost in April was unusually high.\n"
-                 "Statistically significant change: Confirmed real change in cost behavior.\n"
-                 "High slope: Cost increases quickly with income.",
-            xref="paper", yref="paper", showarrow=False, x=0, y=1.05, align='left', font=dict(size=12)
+            text="This chart shows how often each action item is assigned to any category.\\n"
+                 "- Low margin leverage: Cost doesn't scale well with income.\\n"
+                 "- Ratio increased: Expense ratio increased from Jan to Apr.\\n"
+                 "- April outlier: April's cost was far outside the norm.\\n"
+                 "- Statistically significant change: Cost pattern changed meaningfully.\\n"
+                 "- High slope: Cost rises rapidly with income.\\n"
+                 "- No issues: No key risk indicators were triggered.",
+            xref="paper", yref="paper", showarrow=False, x=0, y=1.05, align="left", font=dict(size=12)
         )]
     )
 
-    return table, score_fig, action_fig
+    categories_by_action = dash_table.DataTable(
+        data=df[["Category", "Action Needed"]].to_dict("records"),
+        columns=[{"name": "Category", "id": "Category"}, {"name": "Action Needed", "id": "Action Needed"}],
+        page_size=10,
+        style_table={"marginTop": "20px"}
+    )
+
+    top_scores = df[df["Priority Score"] >= df["Priority Score"].max() - 2]
+    top_grouped = top_scores.groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
+    categories_by_priority = dash_table.DataTable(
+        data=top_grouped.to_dict("records"),
+        columns=[{"name": i, "id": i} for i in top_grouped.columns],
+        page_size=10,
+        style_table={"marginTop": "20px"}
+    )
+
+    return html.Div([
+        table,
+        html.H4("📋 Categories by Action Needed"),
+        categories_by_action,
+        html.H4("🏆 Categories in Top 3 Priority Scores"),
+        categories_by_priority
+    ]), score_fig, action_fig
 
 @app.callback(
     Output("download-dataframe-xlsx", "data"),
