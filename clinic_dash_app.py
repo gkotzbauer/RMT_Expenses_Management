@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
 import base64
@@ -158,8 +157,7 @@ def update_output(contents, filename):
     score_fig = px.histogram(filtered_df, x="Priority Score", title="Categories by Priority Score")
     score_fig.update_layout(
         annotations=[dict(
-            text="This chart shows how many expense categories fall into each priority level (excluding 0). "
-                 "Higher scores indicate greater margin risk or inefficiency.",
+            text="This chart shows how many categories are assigned to each priority level.",
             xref="paper", yref="paper", showarrow=False, x=0, y=1.08, font=dict(size=12)
         )]
     )
@@ -169,18 +167,6 @@ def update_output(contents, filename):
     action_counts = df[actions].sum().reset_index()
     action_counts.columns = ["Action", "Count"]
     action_fig = px.bar(action_counts, x="Action", y="Count", title="Action Item Frequency")
-    action_fig.update_layout(
-        annotations=[dict(
-            text="This chart shows how often each action item is assigned to any category.\\n"
-                 "- Low margin leverage: Cost doesn't scale well with income.\\n"
-                 "- Ratio increased: Expense ratio increased from Jan to Apr.\\n"
-                 "- April outlier: April's cost was far outside the norm.\\n"
-                 "- Statistically significant change: Cost pattern changed meaningfully.\\n"
-                 "- High slope: Cost rises rapidly with income.\\n"
-                 "- No issues: No key risk indicators were triggered.",
-            xref="paper", yref="paper", showarrow=False, x=0, y=1.05, align="left", font=dict(size=12)
-        )]
-    )
 
     categories_by_action = dash_table.DataTable(
         data=df[["Category", "Action Needed"]].to_dict("records"),
@@ -198,12 +184,26 @@ def update_output(contents, filename):
         style_table={"marginTop": "20px"}
     )
 
+    action_definitions_table = html.Table([
+        html.Thead(html.Tr([html.Th("Action Item"), html.Th("Definition")])),
+        html.Tbody([
+            html.Tr([html.Td("Low margin leverage"), html.Td("Cost doesn't scale well with income")]),
+            html.Tr([html.Td("Ratio increased"), html.Td("Expense ratio increased from Jan to Apr")]),
+            html.Tr([html.Td("April outlier"), html.Td("April's cost was far outside the norm")]),
+            html.Tr([html.Td("Statistically significant change"), html.Td("Pattern shift is statistically validated")]),
+            html.Tr([html.Td("High slope (scales with income)"), html.Td("Cost increases rapidly with revenue")]),
+            html.Tr([html.Td("No issues"), html.Td("No risk indicators triggered")]),
+        ])
+    ], style={"marginTop": "30px", "border": "1px solid #ccc", "borderCollapse": "collapse", "width": "80%"})
+
     return html.Div([
         table,
         html.H4("📋 Categories by Action Needed"),
         categories_by_action,
         html.H4("🏆 Categories in Top 3 Priority Scores"),
-        categories_by_priority
+        categories_by_priority,
+        html.H4("📘 Action Item Definitions"),
+        action_definitions_table
     ]), score_fig, action_fig
 
 @app.callback(
