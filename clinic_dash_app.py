@@ -87,15 +87,11 @@ def analyze_file(contents):
 
     df = pd.DataFrame(results)
 
-    # Remove header rows (not real categories)
+    # Exclude non-data headers
     headers_to_remove = [
-        "600100 Payroll expenses",
-        "610000 Supplies",
-        "613000 Insurance",
-        "616000 Employee Benefits",
-        "612000 Professional Fees",
-        "620000 Taxes",
-        "650000 Depreciation Expense"
+        "600100 Payroll expenses", "610000 Supplies", "613000 Insurance",
+        "616000 Employee Benefits", "612000 Professional Fees",
+        "620000 Taxes", "650000 Depreciation Expense"
     ]
     df = df[~df['Category'].isin(headers_to_remove)]
 
@@ -142,19 +138,23 @@ app.layout = html.Div([
     dcc.Download(id="download-dataframe-xlsx"),
     html.Div(id='data-table'),
     dcc.Graph(id="priority-chart"),
-    dcc.Graph(id="action-chart")
+    html.Div(id="top-scores-table"),
+    dcc.Graph(id="action-chart"),
+    html.Div(id="action-definitions-table")
 ])
 
 @app.callback(
     Output('data-table', 'children'),
     Output('priority-chart', 'figure'),
     Output('action-chart', 'figure'),
+    Output('top-scores-table', 'children'),
+    Output('action-definitions-table', 'children'),
     Input('upload-data', 'contents'),
     State('upload-data', 'filename')
 )
 def update_output(contents, filename):
     if contents is None:
-        return None, {}, {}
+        return None, {}, {}, None, None
 
     df = analyze_file(contents)
 
@@ -174,21 +174,24 @@ def update_output(contents, filename):
     action_counts.columns = ["Action", "Count"]
     action_fig = px.bar(action_counts, x="Action", y="Count", title="Action Item Frequency")
 
-    categories_by_action = dash_table.DataTable(
-        data=df[["Category", "Action Needed"]].to_dict("records"),
-        columns=[{"name": "Category", "id": "Category"}, {"name": "Action Needed", "id": "Action Needed"}],
-        page_size=10,
-        style_table={"marginTop": "20px"}
-    )
-
+    # Priority score summary table
     top_scores = df[df["Priority Score"] > 0]
     top_grouped = top_scores.groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
-    categories_by_priority = dash_table.DataTable(
+    top_table = dash_table.DataTable(
         data=top_grouped.to_dict("records"),
         columns=[{"name": i, "id": i} for i in top_grouped.columns],
-        page_size=10,
-        style_table={"marginTop": "20px"}
+        style_cell_conditional=[{"if": {"column_id": "Category"}, "whiteSpace": "normal", "height": "auto"}],
+        style_table={"marginTop": "20px", "width": "100%"}
     )
+
+    top_score_explanation = html.Div([
+        html.H5("🔍 Priority Score Definitions"),
+        html.Ul([
+            html.Li("1–2: Minor attention needed – watch trends."),
+            html.Li("3–4: Moderate risk – likely margin inefficiencies."),
+            html.Li("5+: High priority – clear margin pressure or volatility.")
+        ])
+    ])
 
     action_definitions_table = html.Details([
         html.Summary("📘 Action Item Definitions (click to expand)"),
@@ -205,15 +208,7 @@ def update_output(contents, filename):
         ], style={"marginTop": "10px", "border": "1px solid #ccc", "borderCollapse": "collapse", "width": "80%"})
     ])
 
-    return html.Div([
-        table,
-        html.H4("🏆 Categories in Top 3 Priority Scores"),
-        categories_by_priority,
-        html.H4("📋 Categories by Action Needed"),
-        categories_by_action,
-        html.H4("📘 Action Item Frequency"),
-        action_definitions_table
-    ]), score_fig, action_fig
+    return table, score_fig, action_fig, html.Div([top_table, top_score_explanation]), action_definitions_table
 
 @app.callback(
     Output("download-dataframe-xlsx", "data"),
