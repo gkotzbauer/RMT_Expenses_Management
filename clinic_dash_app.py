@@ -8,13 +8,13 @@ from scipy.stats import ttest_ind
 import plotly.express as px
 
 app = Dash(__name__)
+app.suppress_callback_exceptions = True  # This fixes the error
 server = app.server
 
 def analyze_file(contents):
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
     pnl_df = pd.read_excel(BytesIO(decoded), sheet_name="Profit and Loss")
-
     expenses_start = pnl_df[pnl_df.iloc[:, 0] == "Expenses"].index[0]
     expense_data = pnl_df.iloc[expenses_start + 1:].copy()
     expense_data.columns = ['Category', 'Jan', 'Feb', 'Mar', 'Apr', 'Total']
@@ -145,7 +145,7 @@ def analyze_file(contents):
 
     df["Priority Score"] = 0
     df["Action Needed"] = ""
-    
+
     # Initialize action columns
     actions = [
         "Low margin leverage", "No issues", "Ratio increased",
@@ -188,10 +188,9 @@ app.layout = html.Div([
 def update_filter(contents):
     if not contents:
         return html.Div()
-    
     df = analyze_file(contents)
     categories = sorted(df['Category'].unique())
-    
+
     return html.Div([
         html.Label("Filter by Categories:", style={'fontWeight': 'bold'}),
         dcc.Dropdown(
@@ -216,9 +215,8 @@ def update_filter(contents):
 def update_output(contents, selected_categories, filename, download_clicks):
     if not contents:
         return html.Div("No file uploaded."), None, None
-
     df = analyze_file(contents)
-    
+
     # Apply category filter
     if selected_categories:
         df_filtered = df[df['Category'].isin(selected_categories)].copy()
@@ -285,7 +283,7 @@ def update_output(contents, selected_categories, filename, download_clicks):
             "Reasons for Priority Score": row["Action Needed"] if row["Action Needed"] != "No issues" else "No issues detected",
             "Potential Action": potential_action
         })
-    
+
     category_explanation_table = dash_table.DataTable(
         columns=[{"name": i, "id": i} for i in ["Category", "Reasons for Priority Score", "Potential Action"]],
         data=category_explanations,
