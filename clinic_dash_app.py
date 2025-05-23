@@ -100,34 +100,65 @@ def analyze_file(contents):
     def score_row(row):
         score = 0
         reasons = []
+        flags = {
+            "Low margin leverage": False,
+            "High slope (scales with income)": False,
+            "Ratio increased": False,
+            "April outlier": False,
+            "Statistically significant change": False,
+            "No issues": False
+        }
+        
         if row["Marginal Costs vs Income Margin Leverage Score"] < 0.5:
-            score += 2; reasons.append("Low margin leverage")
+            score += 2
+            reasons.append("Low margin leverage")
+            flags["Low margin leverage"] = True
+            
         if row["Marginal Costs vs Income Slope"] > 0.05:
-            score += 2; reasons.append("High slope (scales with income)")
+            score += 2
+            reasons.append("High slope (scales with income)")
+            flags["High slope (scales with income)"] = True
+            
         if row["Expense Ratios % Change in Ratio (Apr vs Jan)"] > 0:
-            score += 1; reasons.append("Ratio increased")
+            score += 1
+            reasons.append("Ratio increased")
+            flags["Ratio increased"] = True
+            
         if abs(row["April Z-Score Z_April"]) > 2:
-            score += 1; reasons.append("April outlier")
+            score += 1
+            reasons.append("April outlier")
+            flags["April outlier"] = True
+            
         if row["T-Test Statistically Significant Change"].strip().lower() == "yes" and row["T-Test P-Value"] < 0.05:
-            score += 1; reasons.append("Statistically significant change")
-        return score, "; ".join(reasons) if reasons else "No issues"
+            score += 1
+            reasons.append("Statistically significant change")
+            flags["Statistically significant change"] = True
+            
+        if not reasons:
+            flags["No issues"] = True
+            
+        return score, "; ".join(reasons) if reasons else "No issues", flags
 
     df["Priority Score"] = 0
     df["Action Needed"] = ""
-    for idx, row in df.iterrows():
-        score, flag = score_row(row)
-        df.at[idx, "Priority Score"] = score
-        df.at[idx, "Action Needed"] = flag
-
-    df["Action Needed"] = df["Action Needed"].astype(str).str.strip()
-
+    
+    # Initialize action columns
     actions = [
         "Low margin leverage", "No issues", "Ratio increased",
         "April outlier", "Statistically significant change",
         "High slope (scales with income)"
     ]
     for action in actions:
-        df[action] = df["Action Needed"].str.contains(action, case=False).astype(int)
+        df[action] = 0
+        
+    for idx, row in df.iterrows():
+        score, flag_text, flags = score_row(row)
+        df.at[idx, "Priority Score"] = score
+        df.at[idx, "Action Needed"] = flag_text
+        
+        # Set individual action flags
+        for action in actions:
+            df.at[idx, action] = 1 if flags[action] else 0
 
     return df
 
