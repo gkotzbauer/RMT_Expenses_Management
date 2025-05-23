@@ -170,6 +170,8 @@ app.layout = html.Div([
     html.H1("Clinic Expense Analysis Dashboard"),
     dcc.Upload(id='upload-data', children=html.Button('Upload Profit and Loss Excel File'), multiple=False),
     html.Br(),
+    html.Div(id='filter-area'),
+    html.Br(),
     html.Div(id='output-tables'),
     html.Br(),
     html.Div(id='chart-area'),
@@ -179,32 +181,62 @@ app.layout = html.Div([
 ])
 
 @app.callback(
+    Output('filter-area', 'children'),
+    Input('upload-data', 'contents'),
+    prevent_initial_call=True
+)
+def update_filter(contents):
+    if not contents:
+        return html.Div()
+    
+    df = analyze_file(contents)
+    categories = sorted(df['Category'].unique())
+    
+    return html.Div([
+        html.Label("Filter by Categories:", style={'fontWeight': 'bold'}),
+        dcc.Dropdown(
+            id='category-filter',
+            options=[{'label': cat, 'value': cat} for cat in categories],
+            value=categories,  # All categories selected by default
+            multi=True,
+            placeholder="Select categories to display..."
+        )
+    ])
+
+@app.callback(
     Output('output-tables', 'children'),
     Output('chart-area', 'children'),
     Output('download-output', 'data'),
     Input('upload-data', 'contents'),
+    Input('category-filter', 'value'),
     State('upload-data', 'filename'),
     Input('download-btn', 'n_clicks'),
     prevent_initial_call=True
 )
-def update_output(contents, filename, download_clicks):
+def update_output(contents, selected_categories, filename, download_clicks):
     if not contents:
         return html.Div("No file uploaded."), None, None
 
     df = analyze_file(contents)
+    
+    # Apply category filter
+    if selected_categories:
+        df_filtered = df[df['Category'].isin(selected_categories)].copy()
+    else:
+        df_filtered = df.copy()
 
     results_table = dash_table.DataTable(
-        columns=[{"name": i, "id": i} for i in df.columns],
-        data=df.to_dict('records'),
+        columns=[{"name": i, "id": i} for i in df_filtered.columns],
+        data=df_filtered.to_dict('records'),
         style_table={'overflowX': 'auto'},
         style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'},
         page_size=20
     )
 
-    priority_chart = px.histogram(df[df["Priority Score"] > 0], x="Priority Score", nbins=10)
+    priority_chart = px.histogram(df_filtered[df_filtered["Priority Score"] > 0], x="Priority Score", nbins=10)
     priority_chart.update_layout(title="Categories by Priority Score")
 
-    action_counts = df[
+    action_counts = df_filtered[
         ["Low margin leverage", "Ratio increased", "April outlier", 
          "Statistically significant change", "High slope (scales with income)"]
     ].sum().sort_values(ascending=False).reset_index()
@@ -213,7 +245,7 @@ def update_output(contents, filename, download_clicks):
 
     categories_by_action = []
     for action in action_counts["Action"]:
-        matched = df[df[action] == 1]["Category"].tolist()
+        matched = df_filtered[df_filtered[action] == 1]["Category"].tolist()
         categories_by_action.append({"Action Item": action, "Categories": "; ".join(matched)})
     action_table = dash_table.DataTable(
         columns=[{"name": i, "id": i} for i in ["Action Item", "Categories"]],
@@ -221,7 +253,7 @@ def update_output(contents, filename, download_clicks):
         style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'}
     )
 
-    top_priority = df[df["Priority Score"] > 0].groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
+    top_priority = df_filtered[df_filtered["Priority Score"] > 0].groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
     top_priority_table = dash_table.DataTable(
         columns=[{"name": "Priority Score", "id": "Priority Score"}, {"name": "Category", "id": "Category"}],
         data=top_priority.to_dict("records"),
@@ -246,7 +278,7 @@ def update_output(contents, filename, download_clicks):
         return "; ".join(actions)
 
     category_explanations = []
-    for _, row in df.iterrows():
+    for _, row in df_filtered.iterrows():
         potential_action = get_potential_action(row["Action Needed"])
         category_explanations.append({
             "Category": row["Category"],
@@ -267,7 +299,7 @@ def update_output(contents, filename, download_clicks):
 
     if download_clicks:
         output = BytesIO()
-        df.to_excel(output, index=False)
+        df_filtered.to_excel(output, index=False)
         output.seek(0)
         return dash_table.DataTable(), None, dcc.send_bytes(output.read(), "Clinic_Expense_Results.xlsx")
 
@@ -278,6 +310,8 @@ def update_output(contents, filename, download_clicks):
             dcc.Graph(figure=priority_chart),
             html.H3("Top Categories per Priority Score"),
             top_priority_table,
+            html.H3("Category Priority Explanations"),
+            category_explanation_table,
             html.Div([
                 html.H4('Priority Score Definitions'),
                 html.Table([
