@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import base64
 from io import BytesIO
-from dash import Dash, dcc, html, dash_table, Input, Output, State
+from dash import Dash, dcc, html, dash_table, Input, Output, State, ALL
+from dash.exceptions import PreventUpdate
 from sklearn.linear_model import LinearRegression
 from scipy.stats import ttest_ind
 import plotly.express as px
@@ -207,18 +208,19 @@ def update_filter(contents):
     Output('chart-area', 'children'),
     Output('download-output', 'data'),
     Input('upload-data', 'contents'),
-    Input('category-filter', 'value'),
     State('upload-data', 'filename'),
     Input('download-btn', 'n_clicks'),
+    Input('category-filter', 'value'),
     prevent_initial_call=True
 )
-def update_output(contents, selected_categories, filename, download_clicks):
+def update_output(contents, filename, download_clicks, selected_categories=None):
     if not contents:
         return html.Div("No file uploaded."), None, None
+    
     df = analyze_file(contents)
 
-    # Apply category filter
-    if selected_categories:
+    # Apply category filter - handle case where selected_categories might be None
+    if selected_categories is not None and len(selected_categories) > 0:
         df_filtered = df[df['Category'].isin(selected_categories)].copy()
     else:
         df_filtered = df.copy()
