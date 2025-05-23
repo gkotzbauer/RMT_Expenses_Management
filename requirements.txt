@@ -1,6 +1,8 @@
-dash>=2.9.0
-pandas
-numpy
-scikit-learn
-plotly
-openpyxl
+dash==3.0.4
+Flask==3.0.3
+pandas==2.2.3
+numpy==2.2.6
+openpyxl==3.1.5
+scikit-learn==1.6.1
+scipy==1.15.3
+plotly==6.1.1
