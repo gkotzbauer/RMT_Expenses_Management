@@ -1,7 +1,9 @@
 services:
   - type: web
-    name: clinic-expense-app
-    env: python
-    plan: free
+    name: clinic-margin-analyzer
+    runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python clinic_dash_app.py
+    startCommand: python clinic_dash_app_complete_final.py
+    envVars:
+      - key: PORT
+        value: 10000
