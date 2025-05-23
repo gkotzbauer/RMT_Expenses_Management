@@ -228,6 +228,43 @@ def update_output(contents, filename, download_clicks):
         style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'}
     )
 
+    # Create category explanation table
+    def get_potential_action(reasons):
+        actions = []
+        if "Low margin leverage" in reasons:
+            actions.append("Review cost structure and negotiate better rates with vendors")
+        if "High slope (scales with income)" in reasons:
+            actions.append("Implement cost controls to prevent expenses from growing faster than revenue")
+        if "Ratio increased" in reasons:
+            actions.append("Investigate why expense ratio increased and implement cost reduction measures")
+        if "April outlier" in reasons:
+            actions.append("Analyze April expenses for unusual items and verify accuracy")
+        if "Statistically significant change" in reasons:
+            actions.append("Conduct detailed expense analysis to understand the significant cost shift")
+        if "No issues" in reasons or not actions:
+            actions.append("Continue monitoring; no immediate action required")
+        return "; ".join(actions)
+
+    category_explanations = []
+    for _, row in df.iterrows():
+        potential_action = get_potential_action(row["Action Needed"])
+        category_explanations.append({
+            "Category": row["Category"],
+            "Reasons for Priority Score": row["Action Needed"] if row["Action Needed"] != "No issues" else "No issues detected",
+            "Potential Action": potential_action
+        })
+    
+    category_explanation_table = dash_table.DataTable(
+        columns=[{"name": i, "id": i} for i in ["Category", "Reasons for Priority Score", "Potential Action"]],
+        data=category_explanations,
+        style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'},
+        style_data={'whiteSpace': 'normal', 'height': 'auto'},
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }]
+    )
+
     if download_clicks:
         output = BytesIO()
         df.to_excel(output, index=False)
