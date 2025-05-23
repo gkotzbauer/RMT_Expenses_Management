@@ -230,6 +230,29 @@ def update_output(contents, filename, download_clicks):
                     html.Tr([html.Td('No issues:'), html.Td('No margin concerns detected')])
                 ])
             ])
+            html.Div([
+                html.H4('Priority Score Definitions'),
+                html.Table([
+                    html.Tr([html.Td('Priority Score 1–2:'), html.Td('Minor issues, monitor periodically')]),
+                    html.Tr([html.Td('Priority Score 3–4:'), html.Td('Moderate issues, consider corrective actions')]),
+                    html.Tr([html.Td('Priority Score 5+:'), html.Td('Critical attention needed, likely inefficiencies')])
+                ])
+            ]),
+            html.H3("Action Item Frequency"),
+            dcc.Graph(figure=action_chart),
+            html.H3("Categories Assigned to Each Action"),
+            action_table,
+            html.Div([
+                html.H4('Action Item Definitions'),
+                html.Table([
+                    html.Tr([html.Td('Low margin leverage:'), html.Td('Cost does not scale efficiently with income')]),
+                    html.Tr([html.Td('Ratio increased:'), html.Td('Expense ratio increased from Jan to Apr')]),
+                    html.Tr([html.Td('April outlier:'), html.Td('April expense unusually high or low')]),
+                    html.Tr([html.Td('Statistically significant change:'), html.Td('Change from Jan–Feb to Mar–Apr is statistically significant')]),
+                    html.Tr([html.Td('High slope (scales with income):'), html.Td('Expense increases rapidly with income')]),
+                    html.Tr([html.Td('No issues:'), html.Td('No margin concerns detected')])
+                ])
+            ])
             html.H3("Action Item Frequency"),
             dcc.Graph(figure=action_chart),
             html.H3("Categories Assigned to Each Action"),
