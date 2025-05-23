@@ -52,13 +52,17 @@ def analyze_file(contents):
 
         pre, post = [jan, feb], [mar, apr]
         try:
-            if len(set(pre)) > 1 or len(set(post)) > 1:
-                t_stat, p_val = ttest_ind(pre, post, equal_var=False)
+            # Always attempt t-test, even with identical values
+            t_stat, p_val = ttest_ind(pre, post, equal_var=False)
+            # Handle case where p_val might be NaN due to identical groups
+            if np.isnan(p_val):
+                # If groups are identical, no significant change
+                sig = "No"
             else:
-                t_stat, p_val = np.nan, np.nan
+                sig = "Yes" if p_val < 0.05 else "No"
         except:
             t_stat, p_val = np.nan, np.nan
-        sig = "Yes" if p_val is not np.nan and p_val < 0.05 else "No"
+            sig = "No"
 
         may_reg = LinearRegression().fit(np.array([[1], [2], [3], [4]]), np.array([jan, feb, mar, apr]))
         may_forecast = may_reg.predict(np.array([[5]]))[0]
@@ -129,7 +133,7 @@ def analyze_file(contents):
             reasons.append("April outlier")
             flags["April outlier"] = True
             
-        if row["T-Test Statistically Significant Change"].strip().lower() == "yes" and row["T-Test P-Value"] < 0.05:
+        if row["T-Test Statistically Significant Change"].strip().lower() == "yes" and not np.isnan(row["T-Test P-Value"]) and row["T-Test P-Value"] < 0.05:
             score += 1
             reasons.append("Statistically significant change")
             flags["Statistically significant change"] = True
