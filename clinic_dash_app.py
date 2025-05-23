@@ -206,21 +206,139 @@ def update_filter(contents):
 @app.callback(
     Output('output-tables', 'children'),
     Output('chart-area', 'children'),
-    Output('download-output', 'data'),
     Input('upload-data', 'contents'),
     State('upload-data', 'filename'),
-    Input('download-btn', 'n_clicks'),
-    Input('category-filter', 'value'),
     prevent_initial_call=True
 )
-def update_output(contents, filename, download_clicks, selected_categories=None):
+def update_output_initial(contents, filename):
     if not contents:
-        return html.Div("No file uploaded."), None, None
+        return html.Div("No file uploaded."), None
+    
+    df = analyze_file(contents)
+    df_filtered = df.copy()  # Show all categories initially
+
+    results_table = dash_table.DataTable(
+        columns=[{"name": i, "id": i} for i in df_filtered.columns],
+        data=df_filtered.to_dict('records'),
+        style_table={'overflowX': 'auto'},
+        style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'},
+        page_size=20
+    )
+
+    priority_chart = px.histogram(df_filtered[df_filtered["Priority Score"] > 0], x="Priority Score", nbins=10)
+    priority_chart.update_layout(title="Categories by Priority Score")
+
+    action_counts = df_filtered[
+        ["Low margin leverage", "Ratio increased", "April outlier", 
+         "Statistically significant change", "High slope (scales with income)"]
+    ].sum().sort_values(ascending=False).reset_index()
+    action_counts.columns = ["Action", "Count"]
+    action_chart = px.bar(action_counts, x="Action", y="Count", title="Action Item Frequency")
+
+    categories_by_action = []
+    for action in action_counts["Action"]:
+        matched = df_filtered[df_filtered[action] == 1]["Category"].tolist()
+        categories_by_action.append({"Action Item": action, "Categories": "; ".join(matched)})
+    action_table = dash_table.DataTable(
+        columns=[{"name": i, "id": i} for i in ["Action Item", "Categories"]],
+        data=categories_by_action,
+        style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'}
+    )
+
+    top_priority = df_filtered[df_filtered["Priority Score"] > 0].groupby("Priority Score")["Category"].apply(lambda x: "; ".join(x)).reset_index()
+    top_priority_table = dash_table.DataTable(
+        columns=[{"name": "Priority Score", "id": "Priority Score"}, {"name": "Category", "id": "Category"}],
+        data=top_priority.to_dict("records"),
+        style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'}
+    )
+
+    # Create category explanation table
+    def get_potential_action(reasons):
+        actions = []
+        if "Low margin leverage" in reasons:
+            actions.append("Review cost structure and negotiate better rates with vendors")
+        if "High slope (scales with income)" in reasons:
+            actions.append("Implement cost controls to prevent expenses from growing faster than revenue")
+        if "Ratio increased" in reasons:
+            actions.append("Investigate why expense ratio increased and implement cost reduction measures")
+        if "April outlier" in reasons:
+            actions.append("Analyze April expenses for unusual items and verify accuracy")
+        if "Statistically significant change" in reasons:
+            actions.append("Conduct detailed expense analysis to understand the significant cost shift")
+        if "No issues" in reasons or not actions:
+            actions.append("Continue monitoring; no immediate action required")
+        return "; ".join(actions)
+
+    category_explanations = []
+    for _, row in df_filtered.iterrows():
+        potential_action = get_potential_action(row["Action Needed"])
+        category_explanations.append({
+            "Category": row["Category"],
+            "Reasons for Priority Score": row["Action Needed"] if row["Action Needed"] != "No issues" else "No issues detected",
+            "Potential Action": potential_action
+        })
+
+    category_explanation_table = dash_table.DataTable(
+        columns=[{"name": i, "id": i} for i in ["Category", "Reasons for Priority Score", "Potential Action"]],
+        data=category_explanations,
+        style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'},
+        style_data={'whiteSpace': 'normal', 'height': 'auto'},
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }]
+    )
+
+    return (
+        html.Div([html.H3("Results Table"), results_table]),
+        html.Div([
+            html.H3("Categories by Priority Score"),
+            dcc.Graph(figure=priority_chart),
+            html.H3("Top Categories per Priority Score"),
+            top_priority_table,
+            html.Div([
+                html.H4('Priority Score Definitions'),
+                html.Table([
+                    html.Tr([html.Td('Priority Score 1–2:'), html.Td('Minor issues, monitor periodically')]),
+                    html.Tr([html.Td('Priority Score 3–4:'), html.Td('Moderate issues, consider corrective actions')]),
+                    html.Tr([html.Td('Priority Score 5+:'), html.Td('Critical attention needed, likely inefficiencies')])
+                ])
+            ]),
+            html.H3("Category Priority Explanations"),
+            category_explanation_table,
+            html.H3("Action Item Frequency"),
+            dcc.Graph(figure=action_chart),
+            html.H3("Categories Assigned to Each Action"),
+            action_table,
+            html.Div([
+                html.H4('Action Item Definitions'),
+                html.Table([
+                    html.Tr([html.Td('Low margin leverage:'), html.Td('Cost does not scale efficiently with income')]),
+                    html.Tr([html.Td('Ratio increased:'), html.Td('Expense ratio increased from Jan to Apr')]),
+                    html.Tr([html.Td('April outlier:'), html.Td('April expense unusually high or low')]),
+                    html.Tr([html.Td('Statistically significant change:'), html.Td('Change from Jan–Feb to Mar–Apr is statistically significant')]),
+                    html.Tr([html.Td('High slope (scales with income):'), html.Td('Expense increases rapidly with income')]),
+                    html.Tr([html.Td('No issues:'), html.Td('No margin concerns detected')])
+                ])
+            ])
+        ])
+    )
+
+@app.callback(
+    Output('output-tables', 'children'),
+    Output('chart-area', 'children'),
+    Input('category-filter', 'value'),
+    State('upload-data', 'contents'),
+    prevent_initial_call=True
+)
+def update_output_filtered(selected_categories, contents):
+    if not contents:
+        return html.Div("No file uploaded."), None
     
     df = analyze_file(contents)
 
-    # Apply category filter - handle case where selected_categories might be None
-    if selected_categories is not None and len(selected_categories) > 0:
+    # Apply category filter
+    if selected_categories and len(selected_categories) > 0:
         df_filtered = df[df['Category'].isin(selected_categories)].copy()
     else:
         df_filtered = df.copy()
@@ -297,12 +415,6 @@ def update_output(contents, filename, download_clicks, selected_categories=None)
         }]
     )
 
-    if download_clicks:
-        output = BytesIO()
-        df_filtered.to_excel(output, index=False)
-        output.seek(0)
-        return dash_table.DataTable(), None, dcc.send_bytes(output.read(), "Clinic_Expense_Results.xlsx")
-
     return (
         html.Div([html.H3("Results Table"), results_table]),
         html.Div([
@@ -335,9 +447,32 @@ def update_output(contents, filename, download_clicks, selected_categories=None)
                     html.Tr([html.Td('No issues:'), html.Td('No margin concerns detected')])
                 ])
             ])
-        ]),
-        None
+        ])
     )
+
+@app.callback(
+    Output('download-output', 'data'),
+    Input('download-btn', 'n_clicks'),
+    State('upload-data', 'contents'),
+    State('category-filter', 'value'),
+    prevent_initial_call=True
+)
+def download_results(download_clicks, contents, selected_categories):
+    if not download_clicks or not contents:
+        return None
+    
+    df = analyze_file(contents)
+    
+    # Apply category filter
+    if selected_categories and len(selected_categories) > 0:
+        df_filtered = df[df['Category'].isin(selected_categories)].copy()
+    else:
+        df_filtered = df.copy()
+    
+    output = BytesIO()
+    df_filtered.to_excel(output, index=False)
+    output.seek(0)
+    return dcc.send_bytes(output.read(), "Clinic_Expense_Results.xlsx")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
