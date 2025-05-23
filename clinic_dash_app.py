@@ -308,8 +308,6 @@ def update_output(contents, selected_categories, filename, download_clicks):
             dcc.Graph(figure=priority_chart),
             html.H3("Top Categories per Priority Score"),
             top_priority_table,
-            html.H3("Category Priority Explanations"),
-            category_explanation_table,
             html.Div([
                 html.H4('Priority Score Definitions'),
                 html.Table([
@@ -318,6 +316,8 @@ def update_output(contents, selected_categories, filename, download_clicks):
                     html.Tr([html.Td('Priority Score 5+:'), html.Td('Critical attention needed, likely inefficiencies')])
                 ])
             ]),
+            html.H3("Category Priority Explanations"),
+            category_explanation_table,
             html.H3("Action Item Frequency"),
             dcc.Graph(figure=action_chart),
             html.H3("Categories Assigned to Each Action"),
