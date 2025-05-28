@@ -12,6 +12,23 @@ app = Dash(__name__)
 app.suppress_callback_exceptions = True  # This fixes the error
 server = app.server
 
+def create_layout():
+    return html.Div([
+        html.H1("Clinic Expense Analysis Dashboard"),
+        dcc.Upload(id='upload-data', children=html.Button('Upload Profit and Loss Excel File'), multiple=False),
+        html.Br(),
+        html.Div(id='filter-area'),
+        html.Br(),
+        html.Div(id='output-tables'),
+        html.Br(),
+        html.Div(id='chart-area'),
+        html.Br(),
+        html.Button("Download Results", id="download-btn"),
+        dcc.Download(id="download-output")
+    ])
+
+app.layout = create_layout()
+
 def analyze_file(contents):
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
@@ -167,20 +184,6 @@ def analyze_file(contents):
 
     return df
 
-app.layout = html.Div([
-    html.H1("Clinic Expense Analysis Dashboard"),
-    dcc.Upload(id='upload-data', children=html.Button('Upload Profit and Loss Excel File'), multiple=False),
-    html.Br(),
-    html.Div(id='filter-area'),
-    html.Br(),
-    html.Div(id='output-tables'),
-    html.Br(),
-    html.Div(id='chart-area'),
-    html.Br(),
-    html.Button("Download Results", id="download-btn"),
-    dcc.Download(id="download-output")
-])
-
 @app.callback(
     Output('filter-area', 'children'),
     Input('upload-data', 'contents'),
@@ -206,8 +209,8 @@ def update_filter(contents):
 @app.callback(
     Output('output-tables', 'children'),
     Output('chart-area', 'children'),
-    [Input('upload-data', 'contents')],
-    [State('upload-data', 'filename')],
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename'),
     prevent_initial_call=True
 )
 def update_output_initial(contents, filename):
@@ -215,80 +218,7 @@ def update_output_initial(contents, filename):
         raise PreventUpdate
     
     df = analyze_file(contents)
-    
-    # Create the tables and charts
-    tables = []
-    charts = []
-    
-    # Priority Score Table
-    priority_df = df.sort_values('Priority Score', ascending=False)
-    tables.append(html.Div([
-        html.H3("Priority Score Analysis"),
-        dash_table.DataTable(
-            data=priority_df.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in priority_df.columns],
-            style_table={'overflowX': 'auto'},
-            style_cell={
-                'textAlign': 'left',
-                'padding': '10px',
-                'whiteSpace': 'normal',
-                'height': 'auto',
-            },
-            style_header={
-                'backgroundColor': 'rgb(230, 230, 230)',
-                'fontWeight': 'bold'
-            },
-            style_data_conditional=[
-                {
-                    'if': {'filter_query': '{Priority Score} > 0'},
-                    'backgroundColor': 'rgba(255, 0, 0, 0.1)'
-                }
-            ]
-        )
-    ]))
-    
-    # Action Needed Table
-    action_df = df[df['Action Needed'] != 'No issues'].sort_values('Priority Score', ascending=False)
-    if not action_df.empty:
-        tables.append(html.Div([
-            html.H3("Items Requiring Action"),
-            dash_table.DataTable(
-                data=action_df.to_dict('records'),
-                columns=[{"name": i, "id": i} for i in action_df.columns],
-                style_table={'overflowX': 'auto'},
-                style_cell={
-                    'textAlign': 'left',
-                    'padding': '10px',
-                    'whiteSpace': 'normal',
-                    'height': 'auto',
-                },
-                style_header={
-                    'backgroundColor': 'rgb(230, 230, 230)',
-                    'fontWeight': 'bold'
-                }
-            )
-        ]))
-    
-    # Charts
-    # Priority Score Distribution
-    fig_priority = px.histogram(
-        df, 
-        x='Priority Score',
-        title='Distribution of Priority Scores',
-        nbins=10
-    )
-    charts.append(dcc.Graph(figure=fig_priority))
-    
-    # Action Categories
-    action_counts = df['Action Needed'].value_counts()
-    fig_actions = px.pie(
-        values=action_counts.values,
-        names=action_counts.index,
-        title='Distribution of Required Actions'
-    )
-    charts.append(dcc.Graph(figure=fig_actions))
-    
-    return html.Div(tables), html.Div(charts)
+    return create_output_content(df)
 
 @app.callback(
     Output('output-tables', 'children', allow_duplicate=True),
@@ -303,8 +233,9 @@ def update_output_filtered(selected_categories, contents):
     
     df = analyze_file(contents)
     df = df[df['Category'].isin(selected_categories)]
-    
-    # Create the tables and charts
+    return create_output_content(df)
+
+def create_output_content(df):
     tables = []
     charts = []
     
