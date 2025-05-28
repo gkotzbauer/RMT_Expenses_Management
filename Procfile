@@ -1,0 +1,1 @@
+web: gunicorn clinic_dash_app:server 
