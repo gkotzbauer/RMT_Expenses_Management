@@ -206,24 +206,103 @@ def update_filter(contents):
 @app.callback(
     Output('output-tables', 'children'),
     Output('chart-area', 'children'),
-    [Input('upload-data', 'contents'),
-     Input('category-filter', 'value')],
+    [Input('upload-data', 'contents')],
     [State('upload-data', 'filename')],
     prevent_initial_call=True
 )
-def update_output(contents, selected_categories, filename):
+def update_output_initial(contents, filename):
     if not contents:
         raise PreventUpdate
-        
-    # Get the callback context to determine which input triggered the callback
-    ctx = dash.callback_context
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
     df = analyze_file(contents)
     
-    # If triggered by category filter, filter the data
-    if trigger_id == 'category-filter' and selected_categories:
-        df = df[df['Category'].isin(selected_categories)]
+    # Create the tables and charts
+    tables = []
+    charts = []
+    
+    # Priority Score Table
+    priority_df = df.sort_values('Priority Score', ascending=False)
+    tables.append(html.Div([
+        html.H3("Priority Score Analysis"),
+        dash_table.DataTable(
+            data=priority_df.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in priority_df.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={
+                'textAlign': 'left',
+                'padding': '10px',
+                'whiteSpace': 'normal',
+                'height': 'auto',
+            },
+            style_header={
+                'backgroundColor': 'rgb(230, 230, 230)',
+                'fontWeight': 'bold'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'filter_query': '{Priority Score} > 0'},
+                    'backgroundColor': 'rgba(255, 0, 0, 0.1)'
+                }
+            ]
+        )
+    ]))
+    
+    # Action Needed Table
+    action_df = df[df['Action Needed'] != 'No issues'].sort_values('Priority Score', ascending=False)
+    if not action_df.empty:
+        tables.append(html.Div([
+            html.H3("Items Requiring Action"),
+            dash_table.DataTable(
+                data=action_df.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in action_df.columns],
+                style_table={'overflowX': 'auto'},
+                style_cell={
+                    'textAlign': 'left',
+                    'padding': '10px',
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                },
+                style_header={
+                    'backgroundColor': 'rgb(230, 230, 230)',
+                    'fontWeight': 'bold'
+                }
+            )
+        ]))
+    
+    # Charts
+    # Priority Score Distribution
+    fig_priority = px.histogram(
+        df, 
+        x='Priority Score',
+        title='Distribution of Priority Scores',
+        nbins=10
+    )
+    charts.append(dcc.Graph(figure=fig_priority))
+    
+    # Action Categories
+    action_counts = df['Action Needed'].value_counts()
+    fig_actions = px.pie(
+        values=action_counts.values,
+        names=action_counts.index,
+        title='Distribution of Required Actions'
+    )
+    charts.append(dcc.Graph(figure=fig_actions))
+    
+    return html.Div(tables), html.Div(charts)
+
+@app.callback(
+    Output('output-tables', 'children', allow_duplicate=True),
+    Output('chart-area', 'children', allow_duplicate=True),
+    Input('category-filter', 'value'),
+    State('upload-data', 'contents'),
+    prevent_initial_call=True
+)
+def update_output_filtered(selected_categories, contents):
+    if not contents or not selected_categories:
+        raise PreventUpdate
+    
+    df = analyze_file(contents)
+    df = df[df['Category'].isin(selected_categories)]
     
     # Create the tables and charts
     tables = []
