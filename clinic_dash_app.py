@@ -8,9 +8,17 @@ from sklearn.linear_model import LinearRegression
 from scipy.stats import ttest_ind
 import plotly.express as px
 
-app = Dash(__name__)
-app.suppress_callback_exceptions = True  # This fixes the error
+# Initialize the app with specific configurations
+app = Dash(
+    __name__,
+    suppress_callback_exceptions=True,
+    meta_tags=[{'name': 'viewport', 'content': 'width=device-width, initial-scale=1'}],
+    title='Clinic Expense Analysis Dashboard'
+)
+
+# Configure the server
 server = app.server
+app.config.suppress_callback_exceptions = True
 
 def create_layout():
     return html.Div([
@@ -334,4 +342,4 @@ def download_results(download_clicks, contents, selected_categories):
     return dcc.send_bytes(output.read(), "Clinic_Expense_Results.xlsx")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000, debug=True)
+    app.run_server(debug=True, host="0.0.0.0", port=10000)
